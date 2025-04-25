@@ -3,9 +3,6 @@ import logging
 import os
 import sys
 
-sys.path.insert(1, '../../shared')  # add the shared directory to the Python path
-import utils
-
 from azure.ai.projects.aio import AIProjectClient
 from azure.ai.projects.models import (
     Agent,
@@ -29,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 
-AGENT_NAME = "Enza Zaden Plant Analysis Agent"
+AGENT_NAME = "Enza Zaden Analysis Agent"
 API_DEPLOYMENT_NAME = os.getenv("MODEL_DEPLOYMENT_NAME")
 PROJECT_CONNECTION_STRING = os.environ.get("PROJECT_CONNECTION_STRING")
 BING_CONNECTION_NAME = os.getenv("BING_CONNECTION_NAME")
@@ -66,150 +63,160 @@ functions = AsyncFunctionTool(
     }
 )
 
+INSTRUCTIONS_FILE = "instructions/function_calling.txt"
+# INSTRUCTIONS_FILE = "instructions/file_search.txt"
+# INSTRUCTIONS_FILE = "instructions/code_interpreter.txt"
+# INSTRUCTIONS_FILE = "instructions/code_interpreter_multilingual.txt"
+# INSTRUCTIONS_FILE = "instructions/bing_grounding.txt"
 
 async def add_agent_tools() -> None:
     """Add tools for the agent."""
-    # Add the functions tool for API access
+    font_file_info = None
+
+    # Add the functions tool
     toolset.add(functions)
-    
-    # Participants can uncomment and configure these additional tools during the hackathon
-    
-    # Add Bing grounding (if configured)
-    # if BING_CONNECTION_NAME:
-    #     try:
-    #         bing_connection = await project_client.connections.get(connection_name=BING_CONNECTION_NAME)
-    #         bing_grounding = BingGroundingTool(connection_id=bing_connection.id)
-    #         toolset.add(bing_grounding)
-    #         print(f"{tc.GREEN}✓{tc.RESET} Added Bing grounding tool")
-    #     except Exception as e:
-    #         print(f"{tc.RED}✗{tc.RESET} Failed to add Bing grounding tool: {str(e)}")
-    
-    # Add code interpreter
+
+    # Add the tents data sheet to a new vector data store
+    # vector_store = await utilities.create_vector_store(
+    #     project_client,
+    #     files=[TENTS_DATA_SHEET_FILE],
+    #     vector_store_name="Contoso Product Information Vector Store",
+    # )
+    # file_search_tool = FileSearchTool(vector_store_ids=[vector_store.id])
+    # toolset.add(file_search_tool)
+
+    # Add the code interpreter tool
     # code_interpreter = CodeInterpreterTool()
     # toolset.add(code_interpreter)
-    # print(f"{tc.GREEN}✓{tc.RESET} Added code interpreter tool")
+
+    # Add multilingual support to the code interpreter
+    # font_file_info = await utilities.upload_file(project_client, utilities.shared_files_path / FONTS_ZIP)
+    # code_interpreter.add_file(file_id=font_file_info.id)
+
+    # Add the Bing grounding tool
+    # bing_connection = await project_client.connections.get(connection_name=BING_CONNECTION_NAME)
+    # bing_grounding = BingGroundingTool(connection_id=bing_connection.id)
+    # toolset.add(bing_grounding)
+
+    return font_file_info
+
 
 
 async def initialize() -> tuple[Agent, AgentThread]:
-    """Initialize the agent with database schema and instructions."""
-    # Create instructions directory if it doesn't exist
-    os.makedirs("instructions", exist_ok=True)
-    
-    # Create default instructions if they don't exist
-    if not os.path.exists(INSTRUCTIONS_FILE):
-        with open(INSTRUCTIONS_FILE, "w") as f:
-            f.write("""You are a helpful plant analysis assistant for Enza Zaden, a vegetable breeding company.
-            
-You help users analyze plant data and make predictions about plant growth and yields.
+    """Initialize the agent with the sales data schema and instructions."""
 
-You can access the following database schema:
-{database_schema_string}
+    if not INSTRUCTIONS_FILE:
+        return None, None
 
-When the user asks for data, always use SQL queries through the async_fetch_plant_data_using_sql_query function.
-When the user asks to run the growth algorithm, use the async_run_algorithm function.
-When the user asks about weather, use the async_get_weather function.
+    font_file_info = await add_agent_tools()
 
-Always be helpful, professional, and clear in your responses.
-""")
-    
-    await add_agent_tools()
     await enza_data.connect()
     database_schema_string = await enza_data.get_database_info()
 
     try:
-        # Load instructions from file
-        with open(INSTRUCTIONS_FILE, "r") as f:
-            instructions = f.read()
-        
+        instructions = utilities.load_instructions(INSTRUCTIONS_FILE)
         # Replace the placeholder with the database schema string
         instructions = instructions.replace(
             "{database_schema_string}", database_schema_string)
 
-        print(f"{tc.BOLD}Creating agent...{tc.RESET}")
+        if font_file_info:
+            # Replace the placeholder with the font file ID
+            instructions = instructions.replace(
+                "{font_file_id}", font_file_info.id)
+
+        print("Creating agent...")
         agent = await project_client.agents.create_agent(
             model=API_DEPLOYMENT_NAME,
             name=AGENT_NAME,
             instructions=instructions,
             toolset=toolset,
             temperature=TEMPERATURE,
-            top_p=TOP_P,
-            max_completion_tokens=MAX_COMPLETION_TOKENS,
-            max_prompt_tokens=MAX_PROMPT_TOKENS,
             headers={"x-ms-enable-preview": "true"},
         )
-        print(f"{tc.GREEN}✓{tc.RESET} Created agent, ID: {agent.id}")
+        print(f"Created agent, ID: {agent.id}")
 
-        print(f"{tc.BOLD}Creating thread...{tc.RESET}")
+        print("Creating thread...")
         thread = await project_client.agents.create_thread()
-        print(f"{tc.GREEN}✓{tc.RESET} Created thread, ID: {thread.id}")
+        print(f"Created thread, ID: {thread.id}")
 
         return agent, thread
 
     except Exception as e:
         logger.error("An error occurred initializing the agent: %s", str(e))
-        return None, None
+        logger.error("Please ensure you've enabled an instructions file.")
 
 
 async def cleanup(agent: Agent, thread: AgentThread) -> None:
     """Cleanup the resources."""
-    if thread and agent:
-        await project_client.agents.delete_thread(thread.id)
-        await project_client.agents.delete_agent(agent.id)
+    await project_client.agents.delete_thread(thread.id)
+    await project_client.agents.delete_agent(agent.id)
     await enza_data.close()
 
 
-async def post_message(content: str, agent: Agent, thread: AgentThread) -> None:
+async def post_message(thread_id: str, content: str, agent: Agent, thread: AgentThread) -> None:
     """Post a message to the Azure AI Agent Service."""
     try:
-        handler = StreamEventHandler()
-        response = await project_client.agents.post_message(
-            agent_id=agent.id,
-            thread_id=thread.id,
-            message=content,
-            event_handler=handler,
-            headers={"x-ms-enable-preview": "true"},
+        await project_client.agents.create_message(
+            thread_id=thread_id,
+            role="user",
+            content=content,
         )
+
+        stream = await project_client.agents.create_stream(
+            thread_id=thread.id,
+            agent_id=agent.id,
+            event_handler=StreamEventHandler(
+                functions=functions, project_client=project_client, utilities=utilities),
+            max_completion_tokens=MAX_COMPLETION_TOKENS,
+            max_prompt_tokens=MAX_PROMPT_TOKENS,
+            temperature=TEMPERATURE,
+            top_p=TOP_P,
+            instructions=agent.instructions,
+        )
+
+        async with stream as s:
+            await s.until_done()
     except Exception as e:
-        logger.error("An error occurred posting a message: %s", str(e))
+        utilities.log_msg_purple(
+            f"An error occurred posting the message: {e!s}")
 
 
 async def main() -> None:
-    """Run the main application."""
-    try:
-        # Initialize the agent and thread
+    """
+    Example questions: Sales by region, top-selling products, total shipping costs by region, show as a pie chart.
+    """
+    async with project_client:
         agent, thread = await initialize()
-        
         if not agent or not thread:
-            print(f"{tc.RED}Failed to initialize agent or thread. Please check your environment variables and try again.{tc.RESET}")
+            print(f"{tc.BG_BRIGHT_RED}Initialization failed. Ensure you have uncommented the instructions file for the lab.{tc.RESET}")
+            print("Exiting...")
             return
-        
-        print(f"\n{tc.BLUE}===================================={tc.RESET}")
-        print(f"{tc.BOLD}Enza Zaden Plant Analysis Agent{tc.RESET}")
-        print(f"{tc.BLUE}===================================={tc.RESET}")
-        print(f"{tc.GREEN}Ready! Type 'exit' to quit.{tc.RESET}\n")
-        
+
+        cmd = None
+
         while True:
-            # Get user input
-            user_input = input(f"{tc.BOLD}User: {tc.RESET}")
-            
-            if user_input.lower() in ["exit", "quit"]:
+            prompt = input(
+                f"\n\n{tc.GREEN}Enter your query (type exit or save to finish): {tc.RESET}").strip()
+            if not prompt:
+                continue
+
+            cmd = prompt.lower()
+            if cmd in {"exit", "save"}:
                 break
-            
-            # Post the message and process the response
-            await post_message(user_input, agent, thread)
-            print()  # Add a newline for readability
-    
-    except KeyboardInterrupt:
-        print("\nExiting...")
-    
-    except Exception as e:
-        logger.error("An error occurred in the main loop: %s", str(e))
-    
-    finally:
-        # Clean up resources
-        if 'agent' in locals() and 'thread' in locals():
+
+            await post_message(agent=agent, thread_id=thread.id, content=prompt, thread=thread)
+
+        if cmd == "save":
+            print("The agent has not been deleted, so you can continue experimenting with it in the Azure AI Foundry.")
+            print(
+                f"Navigate to https://ai.azure.com, select your project, then playgrounds, agents playgound, then select agent id: {agent.id}"
+            )
+        else:
             await cleanup(agent, thread)
+            print("The agent resources have been cleaned up.")
 
 
 if __name__ == "__main__":
+    print("Starting async program...")
     asyncio.run(main())
+    print("Program finished.")

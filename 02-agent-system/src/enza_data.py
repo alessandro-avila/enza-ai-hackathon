@@ -5,9 +5,6 @@ import aiohttp
 import pandas as pd
 import sys
 
-sys.path.insert(1, '../../shared')  # add the shared directory to the Python path
-import utils
-
 from terminal_colors import TerminalColors as tc
 from utilities import Utilities
 
