@@ -1,3 +1,12 @@
+# Architecture Overview
+
+```
+User Request → AI Agent Service → APIM → Function App(s) → Backend Services
+                     ↑                         ↓
+                     └─────────────────────────┘
+                            Response Flow
+```
+
 # Step-by-Step Setup Guide
 
 ## 1. Create Environment Variables File

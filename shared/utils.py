@@ -198,7 +198,7 @@ def create_bicep_params(policy_xml_filepath, parameters_filepath, bicep_paramete
         bicep_parameters_file.write(json.dumps(bicep_parameters))
 
     print(f"📝 Updated the policy XML in the bicep parameters file '{parameters_filepath}'")
-
+    
     return bicep_parameters
 
 def update_api_policy(subscription_id, resource_group_name, apim_service_name, api_id, policy_xml):
