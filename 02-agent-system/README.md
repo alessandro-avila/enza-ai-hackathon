@@ -45,35 +45,46 @@ To start working with your agent system, follow these steps:
 
 ## Workshop Code Structure
 
-The `src` directory contains code for a "NextGB Agent" that we'll adapt for our use cases:
+The `src` directory contains code for the Enza Zaden agent system:
 
 - **`main.py`**: Core agent implementation using Azure AI Agent Service
-- **`data.py`**: Connects to a database and provides query functions
-- **`utilities.py`**: Helper functions for the agent
-- **`stream_event_handler.py`**: Handles streaming responses
-- **`terminal_colors.py`**: Formatting for terminal output
+- **`enza_data.py`**: Functions for accessing Enza's data and APIs
+- **`sales_data.py`**: Functions for querying the SQL database with sales information
+- **`utilities.py`**: Utility functions for the agent system
+- **`stream_event_handler.py`**: Handles streaming events from the agent
+- **`terminal_colors.py`**: Helper for terminal color output
 
-## Hackathon Tasks
+## New SQL Functionality
 
-During this lab, you'll modify the workshop code to:
+This agent system now includes the ability to query a SQL database with sales data. The agent can:
 
-1. **Connect to your Azure resources**: Update the code to use the APIM endpoint and Azure Functions you deployed earlier.
-2. **Modify the database functions**: Adapt the code to work with the NextGB database.
-3. **Add an algorithm function**: Create a function that calls Enza Zaden's algorithm API.
-4. **Configure the agent**: Update the system message and instructions to work with plant data.
-5. **Test and iteratively improve**: Test the agent with various queries and make improvements.
+1. **Execute general SQL queries** against the sales database
+2. **Get sales by region** to analyze regional performance
+3. **Analyze product sales** across different categories
+4. **Review customer sales data** by customer type
+5. **Analyze sales trends over time** by month or quarter
 
-## Key Concepts
+### Setting Up SQL Query Functionality
 
-Throughout this lab, we'll explore several important concepts:
+To use the SQL query functionality:
 
-- **System Messages**: Configuring the agent's behavior and capabilities
-- **Function Registration**: Making functions available to the agent
-- **API Integration**: Connecting to APIs through APIM
-- **Database Access**: Executing queries against SQL databases
-- **Agent Orchestration**: How the agent decides which functions to call
-- **Context Management**: Maintaining conversation state across interactions
-- **Error Handling**: Dealing with errors or missing information
+1. Copy the `.env.sample` file to `.env` in the `src` directory
+2. Update the environment variables with the values from your deployment:
+   - Set `APIM_GATEWAY_URL` to your API Management gateway URL
+   - Set `APIM_SUBSCRIPTION_KEY` to your API Management subscription key
+
+### Sample Queries for Testing
+
+Once your agent is running, try these sample prompts:
+
+- "Show me the total sales for each region"
+- "Which product category has the highest sales?"
+- "Compare distributor and direct grower customer sales"
+- "Show me the sales trend by month for 2024"
+- "What's the average order value by customer type?"
+- "Run a query to find the top 5 customers by total sales"
+
+The agent will use the appropriate SQL query functions to retrieve the data and present the results in a user-friendly format.
 
 ## Extending the Agent
 

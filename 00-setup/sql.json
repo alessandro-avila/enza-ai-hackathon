@@ -1,0 +1,366 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "SQL Query API",
+    "description": "API for executing SQL queries against a database",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/query": {
+      "post": {
+        "summary": "Execute SQL Query",
+        "description": "Executes a SQL query against the database",
+        "operationId": "executeQuery",
+        "requestBody": {
+          "description": "SQL query parameters",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SQLQueryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Query executed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SQLQueryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request or invalid SQL query",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sales/regions": {
+      "post": {
+        "summary": "Get Sales by Region",
+        "description": "Retrieves sales data grouped by region or for a specific region",
+        "operationId": "getSalesByRegion",
+        "requestBody": {
+          "description": "Region filter parameters",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Sales data retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SQLQueryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sales/products": {
+      "post": {
+        "summary": "Get Product Sales",
+        "description": "Retrieves sales data by product category",
+        "operationId": "getProductSales",
+        "requestBody": {
+          "description": "Product category filter parameters",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Product sales data retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SQLQueryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sales/customers": {
+      "post": {
+        "summary": "Get Customer Sales",
+        "description": "Retrieves sales data by customer type",
+        "operationId": "getCustomerSales",
+        "requestBody": {
+          "description": "Customer type filter parameters",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Customer sales data retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SQLQueryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sales/time-series": {
+      "post": {
+        "summary": "Get Sales Over Time",
+        "description": "Retrieves sales data over time grouped by month or quarter",
+        "operationId": "getSalesOverTime",
+        "requestBody": {
+          "description": "Time period parameters",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TimeSeriesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Time series sales data retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SQLQueryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },  "components": {
+    "schemas": {
+      "SQLQueryRequest": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "SQL query to execute",
+            "example": "SELECT * FROM SalesData WHERE Region = 'Europe' LIMIT 10"
+          },
+          "parameters": {
+            "type": "object",
+            "description": "Optional parameters for the SQL query",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "example": {
+              "region": "Europe",
+              "limit": "10"
+            }
+          }
+        },
+        "required": ["query"]
+      },
+      "RegionRequest": {
+        "type": "object",
+        "properties": {
+          "region_name": {
+            "type": "string",
+            "description": "Optional name of the region to filter by. If not provided, data for all regions will be returned",
+            "example": "Europe"
+          }
+        }
+      },
+      "ProductRequest": {
+        "type": "object",
+        "properties": {
+          "product_category": {
+            "type": "string",
+            "description": "Optional product category to filter by. If not provided, data for all categories will be returned",
+            "example": "Seeds"
+          }
+        }
+      },
+      "CustomerRequest": {
+        "type": "object",
+        "properties": {
+          "customer_type": {
+            "type": "string",
+            "description": "Optional customer type to filter by. If not provided, data for all customer types will be returned",
+            "example": "Distributor"
+          }
+        }
+      },
+      "TimeSeriesRequest": {
+        "type": "object",
+        "properties": {
+          "period_type": {
+            "type": "string",
+            "description": "Time period to group by: 'month' or 'quarter'",
+            "enum": ["month", "quarter"],
+            "default": "month",
+            "example": "month"
+          }
+        }
+      },
+      "SQLQueryResponse": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "description": "Query results",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "count": {
+            "type": "integer",
+            "description": "Number of rows returned",
+            "example": 10
+          },
+          "executionTime": {
+            "type": "number",
+            "format": "float",
+            "description": "Query execution time in seconds",
+            "example": 0.153
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Error message",
+            "example": "Invalid SQL syntax"
+          },
+          "details": {
+            "type": "string",
+            "description": "Detailed error information",
+            "example": "Syntax error near 'SELCT'"
+          }
+        }
+      }
+    }
+  }
+}

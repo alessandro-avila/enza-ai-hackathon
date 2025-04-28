@@ -1,2 +1,5 @@
 .github/prompts/copilot-instructions.prompt.md
 shared/.env.json
+params.json
+.vscode/settings.json
+00-setup/params.json

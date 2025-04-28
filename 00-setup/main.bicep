@@ -1,4 +1,3 @@
-
 @description('List of OpenAI resources to create. Add pairs of name and location.')
 param openAIConfig array = []
 
@@ -154,6 +153,54 @@ param functionAPIDisplayName string = 'WeatherAPI'
 param functionAPIDescription string = 'Weather API'
 
 // function calling: additions END
+
+// SQL Server and Database: additions BEGIN
+
+@description('The name of the SQL Server')
+param sqlServerName string
+
+@description('Location for the SQL Server')
+param sqlServerLocation string = resourceGroup().location
+
+@description('The administrator username for the SQL Server')
+param sqlAdministratorLogin string
+
+@description('The administrator password for the SQL Server')
+@secure()
+param sqlAdministratorLoginPassword string
+
+@description('The name of the SQL Database')
+param sqlDatabaseName string
+
+@description('The SKU name for the SQL Database')
+param sqlDatabaseSku string = 'Basic'
+
+// SQL Server and Database: additions END
+
+// SQL Function App: additions BEGIN
+
+@description('The name of the SQL function app')
+param sqlFunctionAppName string
+
+@description('Location for the SQL function app')
+param sqlFunctionAppLocation string = resourceGroup().location
+
+@description('The name of the SQL function with the http trigger')
+param sqlFunctionName string = 'sql'
+
+@description('The name of the APIM API for SQL Function API')
+param sqlFunctionAPIName string = 'sql'
+
+@description('The relative path of the APIM API for SQL Function API')
+param sqlFunctionAPIPath string = 'sql'
+
+@description('The display name of the APIM API for SQL Function API')
+param sqlFunctionAPIDisplayName string = 'SQLAPI'
+
+@description('The description of the APIM API for SQL Function API')
+param sqlFunctionAPIDescription string = 'SQL Query API'
+
+// SQL Function App: additions END
 
 var resourceSuffix = uniqueString(subscription().id, resourceGroup().id)
 
@@ -505,9 +552,117 @@ output functionAppResourceName string = functionApp.name
 
 // function calling: additions END
 
+// SQL Server and Database: resources BEGIN
+
+resource sqlServer 'Microsoft.Sql/servers@2021-11-01' = {
+  name: '${sqlServerName}-${resourceSuffix}'
+  location: sqlServerLocation
+  properties: {
+    administratorLogin: sqlAdministratorLogin
+    administratorLoginPassword: sqlAdministratorLoginPassword
+    version: '12.0'
+  }
+}
+
+resource sqlDatabase 'Microsoft.Sql/servers/databases@2021-11-01' = {
+  name: sqlDatabaseName
+  parent: sqlServer
+  location: sqlServerLocation
+  sku: {
+    name: sqlDatabaseSku
+  }
+  properties: {
+    collation: 'SQL_Latin1_General_CP1_CI_AS'
+  }
+}
+
+// Allow Azure services to access the SQL server
+resource sqlFirewallRule 'Microsoft.Sql/servers/firewallRules@2021-11-01' = {
+  name: 'AllowAllAzureIPs'
+  parent: sqlServer
+  properties: {
+    startIpAddress: '0.0.0.0'
+    endIpAddress: '0.0.0.0'
+  }
+}
+
+// SQL Server and Database: resources END
+
+// SQL Function App: resources BEGIN
+
+resource sqlFunctionApp 'Microsoft.Web/sites@2022-09-01' = {
+  name: '${sqlFunctionAppName}-${resourceSuffix}'
+  location: sqlFunctionAppLocation
+  kind: 'functionapp,linux'
+  identity: {
+    type: 'SystemAssigned'
+  }
+  properties: {
+    serverFarmId: hostingPlan.id
+    siteConfig: {
+      pythonVersion: '3.11'
+      appSettings: [
+        {
+          name: 'AzureWebJobsStorage'
+          value: 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};EndpointSuffix=${environment().suffixes.storage};AccountKey=${storageAccount.listKeys().keys[0].value}'
+        }
+        {
+          name: 'FUNCTIONS_EXTENSION_VERSION'
+          value: '~4'
+        }
+        {
+          name: 'APPINSIGHTS_INSTRUMENTATIONKEY'
+          value: applicationInsights.properties.InstrumentationKey
+        }
+        {
+          name: 'FUNCTIONS_WORKER_RUNTIME'
+          value: 'python'
+        }
+        {
+          name: 'SQL_CONNECTION_STRING'
+          value: 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Initial Catalog=${sqlDatabaseName};Persist Security Info=False;User ID=${sqlAdministratorLogin};Password=${sqlAdministratorLoginPassword};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
+        }
+      ]
+      linuxFxVersion: 'Python|3.11'
+    }
+    httpsOnly: true
+  }
+}
+
+// Create API for SQL Function in APIM
+resource sqlFunctionApi 'Microsoft.ApiManagement/service/apis@2023-05-01-preview' = {
+  name: sqlFunctionAPIName
+  parent: apimService
+  properties: {
+    apiType: 'http'
+    description: sqlFunctionAPIDescription
+    displayName: sqlFunctionAPIDisplayName
+    format: 'openapi+json'
+    path: sqlFunctionAPIPath
+    serviceUrl: 'https://${sqlFunctionApp.properties.defaultHostName}/api/${sqlFunctionName}'
+    protocols: [
+      'https'
+    ]
+    subscriptionKeyParameterNames: {
+      header: 'api-key'
+      query: 'api-key'
+    }
+    subscriptionRequired: true
+    type: 'http'
+    value: loadJsonContent('sql.json')
+  }
+}
+
+// SQL Function App: resources END
+
 output apimServiceId string = apimService.id
 
 output apimResourceGatewayURL string = apimService.properties.gatewayUrl
 
 #disable-next-line outputs-should-not-contain-secrets
 output apimSubscriptionKey string = apimSubscription.listSecrets().primaryKey
+
+// SQL outputs
+output sqlServerFqdn string = sqlServer.properties.fullyQualifiedDomainName
+output sqlDatabaseName string = sqlDatabase.name
+output sqlFunctionAppResourceName string = sqlFunctionApp.name

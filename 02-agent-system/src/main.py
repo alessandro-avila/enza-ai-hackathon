@@ -17,6 +17,7 @@ from azure.identity import DefaultAzureCredential
 from dotenv import load_dotenv
 
 from enza_data import EnzaData
+from sales_data import SQLData
 from stream_event_handler import StreamEventHandler
 from terminal_colors import TerminalColors as tc
 from utilities import Utilities
@@ -24,7 +25,14 @@ from utilities import Utilities
 logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger(__name__)
 
-load_dotenv()
+# Look for .env in the same directory as this script file
+script_dir = os.path.dirname(os.path.abspath(__file__))
+env_path = os.path.join(script_dir, ".env")
+found = load_dotenv(env_path)
+
+if not found:
+    logger.error("Failed to load .env file. Please ensure it exists in the same directory as this script.")
+    sys.exit(1)
 
 AGENT_NAME = "Enza Zaden Analysis Agent"
 API_DEPLOYMENT_NAME = os.getenv("MODEL_DEPLOYMENT_NAME")
@@ -32,16 +40,33 @@ PROJECT_CONNECTION_STRING = os.environ.get("PROJECT_CONNECTION_STRING")
 BING_CONNECTION_NAME = os.getenv("BING_CONNECTION_NAME")
 MAX_COMPLETION_TOKENS = 10240
 MAX_PROMPT_TOKENS = 20480
+
 # The LLM is used to generate the SQL queries.
 # Set the temperature and top_p low to get more deterministic results.
 TEMPERATURE = float(os.getenv("TEMPERATURE", "0.1"))
 TOP_P = float(os.getenv("TOP_P", "0.1"))
-INSTRUCTIONS_FILE = "instructions/function_calling.txt"
 
-# Create utilities and enza_data instances
+# Create utilities and data instances
 toolset = AsyncToolSet()
 utilities = Utilities()
 enza_data = EnzaData(utilities)
+sql_data = SQLData(utilities)
+
+# Add the SQL query tool references
+SQL_FUNCTIONS = {
+    "execute_sql_query": sql_data.execute_sql_query,
+    "get_sales_by_region": sql_data.get_sales_by_region,
+    "get_product_sales": sql_data.get_product_sales,
+    "get_customer_sales": sql_data.get_customer_sales,
+    "get_sales_over_time": sql_data.get_sales_over_time,
+    "run_custom_query": sql_data.run_custom_query,
+}
+
+# Create tools for EnzaData functions
+ENZA_FUNCTIONS = {
+    "get_seeds_data": enza_data.get_seeds_data,
+    "get_weather_data": enza_data.get_weather_data,
+}
 
 # Validate required environment variables
 if not PROJECT_CONNECTION_STRING:
@@ -60,14 +85,22 @@ functions = AsyncFunctionTool(
         enza_data.async_fetch_plant_data_using_sql_query,
         enza_data.async_run_algorithm,
         enza_data.async_get_weather,
+        sql_data.execute_sql_query,
+        sql_data.get_sales_by_region,
+        sql_data.get_product_sales,
+        sql_data.get_customer_sales,
+        sql_data.get_sales_over_time,
+        sql_data.run_custom_query,
     }
 )
 
-INSTRUCTIONS_FILE = "instructions/function_calling.txt"
-# INSTRUCTIONS_FILE = "instructions/file_search.txt"
-# INSTRUCTIONS_FILE = "instructions/code_interpreter.txt"
-# INSTRUCTIONS_FILE = "instructions/code_interpreter_multilingual.txt"
-# INSTRUCTIONS_FILE = "instructions/bing_grounding.txt"
+instructions_dir = os.path.join(script_dir, "shared", "instructions")
+# Instructions files for the agent
+INSTRUCTIONS_FILE = os.path.join(instructions_dir, "function_calling.txt")
+# INSTRUCTIONS_FILE = os.path.join(instructions_dir, "file_search.txt")
+# INSTRUCTIONS_FILE = os.path.join(instructions_dir, "code_interpreter.txt")
+# INSTRUCTIONS_FILE = os.path.join(instructions_dir, "code_interpreter_multilingual.txt")
+# INSTRUCTIONS_FILE = os.path.join(instructions_dir, "bing_grounding.txt")
 
 async def add_agent_tools() -> None:
     """Add tools for the agent."""
@@ -99,7 +132,6 @@ async def add_agent_tools() -> None:
     # toolset.add(bing_grounding)
 
     return font_file_info
-
 
 
 async def initialize() -> tuple[Agent, AgentThread]:

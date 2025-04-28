@@ -1,129 +1,284 @@
+import os
 import json
 import logging
-from typing import Optional
+import requests
+from typing import Dict, Any, List, Optional
 
-import aiosqlite
-import pandas as pd
-
-from terminal_colors import TerminalColors as tc
-from utilities import Utilities
-
-DATA_BASE = "database/contoso-sales.db"
-
-logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger(__name__)
 
+class SQLData:
+    """Class to interact with sales data through the SQL API."""
 
-class SalesData:
-    conn: Optional[aiosqlite.Connection]
-
-    def __init__(self: "SalesData", utilities: Utilities) -> None:
-        self.conn = None
+    def __init__(self, utilities=None):
+        """Initialize the SQLData class."""
         self.utilities = utilities
+        self.apim_gateway_url = os.getenv("APIM_GATEWAY_URL")
+        self.apim_subscription_key = os.getenv("APIM_SUBSCRIPTION_KEY")
+        
+        # Check if the required environment variables are set
+        if not self.apim_gateway_url or not self.apim_subscription_key:
+            logger.warning("APIM_GATEWAY_URL or APIM_SUBSCRIPTION_KEY not set. SQL query functionality will not work.")
 
-    async def connect(self: "SalesData") -> None:
-        db_uri = f"file:{self.utilities.shared_files_path}/{DATA_BASE}?mode=ro"
-
-        try:
-            self.conn = await aiosqlite.connect(db_uri, uri=True)
-            logger.debug("Database connection opened.")
-        except aiosqlite.Error as e:
-            logger.exception("An error occurred", exc_info=e)
-            self.conn = None
-
-    async def close(self: "SalesData") -> None:
-        if self.conn:
-            await self.conn.close()
-            logger.debug("Database connection closed.")
-
-    async def _get_table_names(self: "SalesData") -> list:
-        """Return a list of table names."""
-        table_names = []
-        async with self.conn.execute("SELECT name FROM sqlite_master WHERE type='table';") as tables:
-            return [table[0] async for table in tables if table[0] != "sqlite_sequence"]
-
-    async def _get_column_info(self: "SalesData", table_name: str) -> list:
-        """Return a list of tuples containing column names and their types."""
-        column_info = []
-        async with self.conn.execute(f"PRAGMA table_info('{table_name}');") as columns:
-            # col[1] is the column name, col[2] is the column type
-            return [f"{col[1]}: {col[2]}" async for col in columns]
-
-    async def _get_regions(self: "SalesData") -> list:
-        """Return a list of unique regions in the database."""
-        async with self.conn.execute("SELECT DISTINCT region FROM sales_data;") as regions:
-            result = await regions.fetchall()
-        return [region[0] for region in result]
-
-    async def _get_product_types(self: "SalesData") -> list:
-        """Return a list of unique product types in the database."""
-        async with self.conn.execute("SELECT DISTINCT product_type FROM sales_data;") as product_types:
-            result = await product_types.fetchall()
-        return [product_type[0] for product_type in result]
-
-    async def _get_product_categories(self: "SalesData") -> list:
-        """Return a list of unique product categories in the database."""
-        async with self.conn.execute("SELECT DISTINCT main_category FROM sales_data;") as product_categories:
-            result = await product_categories.fetchall()
-        return [product_category[0] for product_category in result]
-
-    async def _get_reporting_years(self: "SalesData") -> list:
-        """Return a list of unique reporting years in the database."""
-        async with self.conn.execute("SELECT DISTINCT year FROM sales_data ORDER BY year;") as reporting_years:
-            result = await reporting_years.fetchall()
-        return [str(reporting_year[0]) for reporting_year in result]
-
-    async def get_database_info(self: "SalesData") -> str:
-        """Return a string containing the database schema information and common query fields."""
-        table_dicts = []
-        for table_name in await self._get_table_names():
-            columns_names = await self._get_column_info(table_name)
-            table_dicts.append(
-                {"table_name": table_name, "column_names": columns_names})
-
-        database_info = "\n".join(
-            [
-                f"Table {table['table_name']} Schema: Columns: {', '.join(table['column_names'])}"
-                for table in table_dicts
-            ]
-        )
-        regions = await self._get_regions()
-        product_types = await self._get_product_types()
-        product_categories = await self._get_product_categories()
-        reporting_years = await self._get_reporting_years()
-
-        database_info += f"\nRegions: {', '.join(regions)}"
-        database_info += f"\nProduct Types: {', '.join(product_types)}"
-        database_info += f"\nProduct Categories: {', '.join(product_categories)}"
-        database_info += f"\nReporting Years: {', '.join(reporting_years)}"
-        database_info += "\n\n"
-
-        return database_info
-
-    async def async_fetch_sales_data_using_sqlite_query(self: "SalesData", sqlite_query: str) -> str:
+    async def execute_sql_query(self, query: str, parameters: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+        """Execute a SQL query against the database.
+        
+        Args:
+            query: The SQL query to execute
+            parameters: Optional parameters for the SQL query
+            
+        Returns:
+            A dictionary with the query results
         """
-        This function is used to answer user questions about Contoso sales data by executing SQLite queries against the database.
-
-        :param sqlite_query: The input should be a well-formed SQLite query to extract information based on the user's question. The query result will be returned as a JSON object.
-        :return: Return data in JSON serializable format.
-        :rtype: str
-        """
-
-        print(
-            f"\n{tc.BLUE}Function Call Tools: async_fetch_sales_data_using_sqlite_query{tc.RESET}\n")
-        print(f"{tc.BLUE}Executing query: {sqlite_query}{tc.RESET}\n")
-
+        if self.utilities:
+            self.utilities.append_log("Executing SQL query: " + query)
+        
+        if not self.apim_gateway_url or not self.apim_subscription_key:
+            error_msg = "Cannot execute SQL query: APIM_GATEWAY_URL or APIM_SUBSCRIPTION_KEY not set."
+            logger.error(error_msg)
+            return {"error": error_msg}
+        
+        # Prepare the request
+        url = f"{self.apim_gateway_url}/sql/query"
+        headers = {
+            "api-key": self.apim_subscription_key,
+            "Content-Type": "application/json"
+        }
+        
+        # Create request payload
+        payload = {
+            "query": query
+        }
+        
+        if parameters:
+            payload["parameters"] = parameters
+        
         try:
-            # Perform the query asynchronously
-            async with self.conn.execute(sqlite_query) as cursor:
-                rows = await cursor.fetchall()
-                columns = [description[0]
-                           for description in cursor.description]
+            # Make the request
+            response = requests.post(url, headers=headers, json=payload)
+            response.raise_for_status()  # Raise an exception for non-2xx status codes
+            
+            # Parse and return the response
+            result = response.json()
+            
+            if self.utilities:
+                self.utilities.append_log(f"SQL query executed successfully. Returned {len(result.get('results', []))} records.")
+            
+            return result
+        except requests.exceptions.RequestException as e:
+            error_msg = f"Error executing SQL query: {str(e)}"
+            if self.utilities:
+                self.utilities.append_log(error_msg)
+            logger.error(error_msg)
+            
+            # Try to parse error response if available
+            try:
+                error_details = response.json()
+                return {"error": error_msg, "details": error_details}
+            except:
+                return {"error": error_msg}
 
-            if not rows:  # No need to create DataFrame if there are no rows
-                return json.dumps("The query returned no results. Try a different question.")
-            data = pd.DataFrame(rows, columns=columns)
-            return data.to_json(index=False, orient="split")
-
+    async def get_sales_by_region(self, region_name: Optional[str] = None) -> Dict[str, Any]:
+        """Get sales data by region.
+        
+        Args:
+            region_name: Optional name of the region to filter by
+            
+        Returns:
+            Sales data for the specified region or all regions if not specified
+        """
+        if self.utilities:
+            self.utilities.append_log(f"Getting sales data for region: {region_name if region_name else 'all regions'}")
+        
+        if not self.apim_gateway_url or not self.apim_subscription_key:
+            error_msg = "Cannot execute SQL query: APIM_GATEWAY_URL or APIM_SUBSCRIPTION_KEY not set."
+            logger.error(error_msg)
+            return {"error": error_msg}
+        
+        # Prepare the request
+        url = f"{self.apim_gateway_url}/sql/sales/regions"
+        headers = {
+            "api-key": self.apim_subscription_key,
+            "Content-Type": "application/json"
+        }
+        
+        # Create request payload
+        payload = {}
+        if region_name:
+            payload["region_name"] = region_name
+        
+        try:
+            # Make the request
+            response = requests.post(url, headers=headers, json=payload)
+            response.raise_for_status()
+            
+            # Parse and return the response
+            result = response.json()
+            
+            if self.utilities:
+                self.utilities.append_log(f"Retrieved sales data for {region_name if region_name else 'all regions'}")
+            
+            return result
+            
         except Exception as e:
-            return json.dumps({"SQLite query failed with error": str(e), "query": sqlite_query})
+            error_msg = f"Error getting sales by region: {str(e)}"
+            if self.utilities:
+                self.utilities.append_log(error_msg)
+            logger.error(error_msg)
+            return {"error": error_msg}
+    
+    async def get_product_sales(self, product_category: Optional[str] = None) -> Dict[str, Any]:
+        """Get sales data by product category.
+        
+        Args:
+            product_category: Optional product category to filter by
+            
+        Returns:
+            Sales data for the specified product category or all categories if not specified
+        """
+        if self.utilities:
+            self.utilities.append_log(f"Getting sales data for product category: {product_category if product_category else 'all categories'}")
+        
+        if not self.apim_gateway_url or not self.apim_subscription_key:
+            error_msg = "Cannot execute SQL query: APIM_GATEWAY_URL or APIM_SUBSCRIPTION_KEY not set."
+            logger.error(error_msg)
+            return {"error": error_msg}
+        
+        # Prepare the request
+        url = f"{self.apim_gateway_url}/sql/sales/products"
+        headers = {
+            "api-key": self.apim_subscription_key,
+            "Content-Type": "application/json"
+        }
+        
+        # Create request payload
+        payload = {}
+        if product_category:
+            payload["product_category"] = product_category
+        
+        try:
+            # Make the request
+            response = requests.post(url, headers=headers, json=payload)
+            response.raise_for_status()
+            
+            # Parse and return the response
+            result = response.json()
+            
+            if self.utilities:
+                self.utilities.append_log(f"Retrieved product sales data for {product_category if product_category else 'all categories'}")
+            
+            return result
+            
+        except Exception as e:
+            error_msg = f"Error getting product sales: {str(e)}"
+            if self.utilities:
+                self.utilities.append_log(error_msg)
+            logger.error(error_msg)
+            return {"error": error_msg}
+    
+    async def get_customer_sales(self, customer_type: Optional[str] = None) -> Dict[str, Any]:
+        """Get sales data by customer type.
+        
+        Args:
+            customer_type: Optional customer type to filter by
+            
+        Returns:
+            Sales data for the specified customer type or all types if not specified
+        """
+        if self.utilities:
+            self.utilities.append_log(f"Getting sales data for customer type: {customer_type if customer_type else 'all types'}")
+        
+        if not self.apim_gateway_url or not self.apim_subscription_key:
+            error_msg = "Cannot execute SQL query: APIM_GATEWAY_URL or APIM_SUBSCRIPTION_KEY not set."
+            logger.error(error_msg)
+            return {"error": error_msg}
+        
+        # Prepare the request
+        url = f"{self.apim_gateway_url}/sql/sales/customers"
+        headers = {
+            "api-key": self.apim_subscription_key,
+            "Content-Type": "application/json"
+        }
+        
+        # Create request payload
+        payload = {}
+        if customer_type:
+            payload["customer_type"] = customer_type
+        
+        try:
+            # Make the request
+            response = requests.post(url, headers=headers, json=payload)
+            response.raise_for_status()
+            
+            # Parse and return the response
+            result = response.json()
+            
+            if self.utilities:
+                self.utilities.append_log(f"Retrieved customer sales data for {customer_type if customer_type else 'all types'}")
+            
+            return result
+            
+        except Exception as e:
+            error_msg = f"Error getting customer sales: {str(e)}"
+            if self.utilities:
+                self.utilities.append_log(error_msg)
+            logger.error(error_msg)
+            return {"error": error_msg}
+        
+    async def get_sales_over_time(self, period_type: str = "month") -> Dict[str, Any]:
+        """Get sales data over time.
+        
+        Args:
+            period_type: The time period to group by ('month' or 'quarter')
+            
+        Returns:
+            Sales data grouped by the specified time period
+        """
+        if self.utilities:
+            self.utilities.append_log(f"Getting sales data over time by {period_type}")
+        
+        if not self.apim_gateway_url or not self.apim_subscription_key:
+            error_msg = "Cannot execute SQL query: APIM_GATEWAY_URL or APIM_SUBSCRIPTION_KEY not set."
+            logger.error(error_msg)
+            return {"error": error_msg}
+        
+        # Prepare the request
+        url = f"{self.apim_gateway_url}/sql/sales/time-series"
+        headers = {
+            "api-key": self.apim_subscription_key,
+            "Content-Type": "application/json"
+        }
+        
+        # Create request payload
+        payload = {"period_type": period_type}
+        
+        try:
+            # Make the request
+            response = requests.post(url, headers=headers, json=payload)
+            response.raise_for_status()
+            
+            # Parse and return the response
+            result = response.json()
+            
+            if self.utilities:
+                self.utilities.append_log(f"Retrieved sales time series data by {period_type}")
+            
+            return result
+            
+        except Exception as e:
+            error_msg = f"Error getting sales over time: {str(e)}"
+            if self.utilities:
+                self.utilities.append_log(error_msg)
+            logger.error(error_msg)
+            return {"error": error_msg}
+        
+    async def run_custom_query(self, query: str, parameters: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+        """Run a custom SQL query.
+        
+        Args:
+            query: The SQL query to execute
+            parameters: Optional parameters for the SQL query
+            
+        Returns:
+            The query results
+        """
+        return await self.execute_sql_query(query, parameters)
