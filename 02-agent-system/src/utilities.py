@@ -5,6 +5,8 @@ from azure.ai.projects.models import ThreadMessage
 
 from terminal_colors import TerminalColors as tc
 
+import inspect, uuid
+
 
 class Utilities:
     # propert to get the relative path of shared files
@@ -30,6 +32,11 @@ class Utilities:
     def log_token_blue(self, msg: str) -> None:
         """Print a token in blue."""
         print(f"{tc.BLUE}{msg}{tc.RESET}", end="", flush=True)
+        
+    @staticmethod    
+    def generate_uuid() -> str:
+        """Generate a unique identifier."""
+        return str(uuid.uuid4())
 
     async def get_file(self, project_client: AIProjectClient, file_id: str, attachment_name: str) -> None:
         """Retrieve the file and save it to the local disk."""
@@ -58,7 +65,9 @@ class Utilities:
         if message.image_contents:
             for index, image in enumerate(message.image_contents, start=0):
                 attachment_name = (
-                    "unknown" if not message.file_path_annotations else message.file_path_annotations[index].text + ".png"
+                    "unknown"
+                    if not message.file_path_annotations
+                    else message.file_path_annotations[index].text + ".png"
                 )
                 await self.get_file(project_client, image.image_file.file_id, attachment_name)
         elif message.attachments:
@@ -98,3 +107,21 @@ class Utilities:
 
         self.log_msg_purple(f"Vector store created and files added.")
         return vector_store
+
+    # This method is used to collect async and sync functions from an instance of a class.
+    @staticmethod
+    def collect_api_functions(instance, *, exclude: set[str] = set()):
+        """
+        Returns
+          • async_funcs - set of coroutine callables (inspect.iscoroutinefunction)
+          • sync_funcs  - dict of regular callables {name: fn}
+        """
+        async_funcs, sync_funcs = set(), {}
+        for name, fn in inspect.getmembers(instance, callable):
+            if name in exclude or name.startswith("_"):
+                continue
+            if inspect.iscoroutinefunction(fn):
+                async_funcs.add(fn)
+            else:
+                sync_funcs[name] = fn
+        return async_funcs, sync_funcs
