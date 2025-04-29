@@ -54,18 +54,18 @@ sql_data = SQLData(utilities)
 
 # Add the SQL query tool references
 SQL_FUNCTIONS = {
-    "execute_sql_query": sql_data.execute_sql_query,
     "get_sales_by_region": sql_data.get_sales_by_region,
     "get_product_sales": sql_data.get_product_sales,
     "get_customer_sales": sql_data.get_customer_sales,
     "get_sales_over_time": sql_data.get_sales_over_time,
-    "run_custom_query": sql_data.run_custom_query,
+    "run_custom_query": sql_data.run_custom_query
 }
 
 # Create tools for EnzaData functions
 ENZA_FUNCTIONS = {
     "get_seeds_data": enza_data.get_seeds_data,
     "get_weather_data": enza_data.get_weather_data,
+    get_sales_by_region: sql_data.get_sales_by_region,
 }
 
 # Validate required environment variables

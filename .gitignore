@@ -5,3 +5,4 @@ params.json
 00-setup/params.json
 **/local.settings.json
 00-setup/functions/sql/local.settings.json
+00-setup/functions/sql/local.settings.json

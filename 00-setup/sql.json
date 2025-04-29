@@ -6,56 +6,6 @@
     "version": "1.0.0"
   },
   "paths": {
-    "/query": {
-      "post": {
-        "summary": "Execute SQL Query",
-        "description": "Executes a SQL query against the database",
-        "operationId": "executeQuery",
-        "requestBody": {
-          "description": "SQL query parameters",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SQLQueryRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Query executed successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SQLQueryResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request or invalid SQL query",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/sales/regions": {
       "post": {
         "summary": "Get Sales by Region",
@@ -106,17 +56,18 @@
         }
       }
     },
-    "/sales/products": {
+    "/sales/by-category": {
       "post": {
-        "summary": "Get Product Sales",
-        "description": "Retrieves sales data by product category",
-        "operationId": "getProductSales",
+        "summary": "Get Sales by Product Category",
+        "description": "Retrieves sales data grouped by product category",
+        "operationId": "getSalesByCategory",
         "requestBody": {
-          "description": "Product category filter parameters",
+          "description": "Empty request body (no parameters needed)",
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ProductRequest"
+                "type": "object",
+                "properties": {}
               }
             }
           },
@@ -124,21 +75,25 @@
         },
         "responses": {
           "200": {
-            "description": "Product sales data retrieved successfully",
+            "description": "Sales by category retrieved successfully",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SQLQueryResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "type": "object",
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "ProductCategory": { "type": "string" },
+                          "TotalOrders": { "type": "integer" },
+                          "TotalUnitsSold": { "type": "integer" },
+                          "TotalRevenue": { "type": "number" }
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -156,17 +111,18 @@
         }
       }
     },
-    "/sales/customers": {
+    "/sales/by-channel": {
       "post": {
-        "summary": "Get Customer Sales",
-        "description": "Retrieves sales data by customer type",
-        "operationId": "getCustomerSales",
+        "summary": "Get Sales by Channel",
+        "description": "Retrieves sales data grouped by sales channel",
+        "operationId": "getSalesByChannel",
         "requestBody": {
-          "description": "Customer type filter parameters",
+          "description": "Empty request body (no parameters needed)",
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CustomerRequest"
+                "type": "object",
+                "properties": {}
               }
             }
           },
@@ -174,21 +130,25 @@
         },
         "responses": {
           "200": {
-            "description": "Customer sales data retrieved successfully",
+            "description": "Sales by channel retrieved successfully",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SQLQueryResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "type": "object",
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "SalesChannel": { "type": "string" },
+                          "TotalOrders": { "type": "integer" },
+                          "TotalUnitsSold": { "type": "integer" },
+                          "TotalRevenue": { "type": "number" }
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -206,17 +166,26 @@
         }
       }
     },
-    "/sales/time-series": {
+    "/customers/top": {
       "post": {
-        "summary": "Get Sales Over Time",
-        "description": "Retrieves sales data over time grouped by month or quarter",
-        "operationId": "getSalesOverTime",
+        "summary": "Get Top Customers",
+        "description": "Retrieves top customers by total spend",
+        "operationId": "getTopCustomers",
         "requestBody": {
-          "description": "Time period parameters",
+          "description": "Limit parameter for number of customers",
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TimeSeriesRequest"
+                "type": "object",
+                "properties": {
+                  "limit": {
+                    "type": "integer",
+                    "description": "Number of top customers to retrieve",
+                    "default": 10,
+                    "minimum": 1,
+                    "maximum": 100
+                  }
+                }
               }
             }
           },
@@ -224,21 +193,85 @@
         },
         "responses": {
           "200": {
-            "description": "Time series sales data retrieved successfully",
+            "description": "Top customers retrieved successfully",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SQLQueryResponse"
+                  "type": "object",
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "CustomerName": { "type": "string" },
+                          "CustomerType": { "type": "string" },
+                          "RegionName": { "type": "string" },
+                          "Country": { "type": "string" },
+                          "TotalOrders": { "type": "integer" },
+                          "TotalSpent": { "type": "number" }
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }
           },
-          "400": {
-            "description": "Bad request",
+          "500": {
+            "description": "Internal server error",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/products/performance": {
+      "post": {
+        "summary": "Get Product Performance",
+        "description": "Retrieves performance metrics for all products",
+        "operationId": "getProductPerformance",
+        "requestBody": {
+          "description": "Empty request body (no parameters needed)",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {}
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Product performance metrics retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "ProductName": { "type": "string" },
+                          "ProductCategory": { "type": "string" },
+                          "ProductLine": { "type": "string" },
+                          "TotalOrders": { "type": "integer" },
+                          "TotalUnitsSold": { "type": "integer" },
+                          "TotalRevenue": { "type": "number" },
+                          "AverageOrderValue": { "type": "number" }
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -256,7 +289,8 @@
         }
       }
     }
-  },  "components": {
+  },
+  "components": {
     "schemas": {
       "SQLQueryRequest": {
         "type": "object",
@@ -290,38 +324,6 @@
           }
         }
       },
-      "ProductRequest": {
-        "type": "object",
-        "properties": {
-          "product_category": {
-            "type": "string",
-            "description": "Optional product category to filter by. If not provided, data for all categories will be returned",
-            "example": "Seeds"
-          }
-        }
-      },
-      "CustomerRequest": {
-        "type": "object",
-        "properties": {
-          "customer_type": {
-            "type": "string",
-            "description": "Optional customer type to filter by. If not provided, data for all customer types will be returned",
-            "example": "Distributor"
-          }
-        }
-      },
-      "TimeSeriesRequest": {
-        "type": "object",
-        "properties": {
-          "period_type": {
-            "type": "string",
-            "description": "Time period to group by: 'month' or 'quarter'",
-            "enum": ["month", "quarter"],
-            "default": "month",
-            "example": "month"
-          }
-        }
-      },
       "SQLQueryResponse": {
         "type": "object",
         "properties": {
@@ -332,17 +334,6 @@
               "type": "object",
               "additionalProperties": true
             }
-          },
-          "count": {
-            "type": "integer",
-            "description": "Number of rows returned",
-            "example": 10
-          },
-          "executionTime": {
-            "type": "number",
-            "format": "float",
-            "description": "Query execution time in seconds",
-            "example": 0.153
           }
         }
       },
