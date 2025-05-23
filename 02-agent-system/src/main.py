@@ -9,9 +9,7 @@ from azure.ai.projects.models import (
     AgentThread,
     AsyncFunctionTool,
     AsyncToolSet,
-    BingGroundingTool,
     CodeInterpreterTool,
-    FileSearchTool,
 )
 from azure.identity import DefaultAzureCredential
 from dotenv import load_dotenv
